@@ -34,6 +34,22 @@ def doppler_cmap() -> LinearSegmentedColormap:
     cmap.set_bad("black")
     return cmap
 
+def intensity_cmap() -> LinearSegmentedColormap:
+    """
+    Intensity colormap: yellow → orange → pink → magenta → purple,
+    with NaNs shown as black.
+    """
+    colors = [
+        (0.00, (0.25, 0.00, 0.40)),  # deep purple (low intensity)
+        (0.25, (0.55, 0.00, 0.55)),  # magenta
+        (0.50, (0.90, 0.20, 0.50)),  # pink
+        (0.75, (1.00, 0.55, 0.10)),  # orange
+        (1.00, (1.00, 0.95, 0.00)),  # yellow (high intensity)
+    ]
+    cmap = LinearSegmentedColormap.from_list("intensity", colors)
+    cmap.set_bad("black")
+    return cmap
+
 
 def make_raster(
     points: np.ndarray,
@@ -67,24 +83,25 @@ def make_raster(
         g = points[:, gate_col]
         mask &= (g >= gate_min) & (g <= gate_max)
 
-    # ---- optional filter by intensity (column 4) ----
-    if intensity_min is not None or intensity_max is not None:
-        intens = points[:, 4]
-        if intensity_min is not None:
-            mask &= intens >= intensity_min
-        if intensity_max is not None:
-            mask &= intens <= intensity_max
+    # # ---- optional filter by intensity (column 4) ----
+    # if intensity_min is not None or intensity_max is not None:
+    #     intens = points[:, 4]
+    #     if intensity_min is not None:
+    #         mask &= intens >= intensity_min
+    #     if intensity_max is not None:
+    #         mask &= intens <= intensity_max
 
-    # ---- optional filter by reflectivity (column 6) ----
-    if reflectivity_min is not None or reflectivity_max is not None:
-        refl = points[:, 6]
-        if reflectivity_min is not None:
-            mask &= refl >= reflectivity_min
-        if reflectivity_max is not None:
-            mask &= refl <= reflectivity_max
+    # # ---- optional filter by reflectivity (column 6) ----
+    # if reflectivity_min is not None or reflectivity_max is not None:
+    #     refl = points[:, 6]
+    #     if reflectivity_min is not None:
+    #         mask &= refl >= reflectivity_min
+    #     if reflectivity_max is not None:
+    #         mask &= refl <= reflectivity_max
 
     # If nothing survives, return an all-NaN grid
     if not np.any(mask):
+        print("All points filtered out")
         W = int(np.ceil((xlim[1] - xlim[0]) / res))
         H = int(np.ceil((ylim[1] - ylim[0]) / res))
         grid = np.full((H, W), np.nan, dtype=np.float32)
@@ -148,6 +165,10 @@ def render_raster_png(
     show: bool = False,
     dpi: int = 200,
     channel: str = "velocity",   # "velocity", "intensity", or "reflectivity"
+    intensity_min: Optional[float] = None,
+    intensity_max: Optional[float] = None,
+    reflectivity_min: Optional[float] = None,
+    reflectivity_max: Optional[float] = None,
 ):
     if channel == "velocity":
         cmap = doppler_cmap()
@@ -157,11 +178,11 @@ def render_raster_png(
         cbar_ticklabels = [f"-{int(vmax)} m/s", "0", f"{int(vmax)} m/s"]
     elif channel == "intensity":
         # Raw returned power; just use a standard colormap
-        cmap = plt.get_cmap("viridis")
-        norm = None
+        cmap = intensity_cmap()
+        norm = Normalize(vmin=intensity_min, vmax=intensity_max, clip=True)
         cbar_label = "Intensity"
-        cbar_ticks = None
-        cbar_ticklabels = None
+        cbar_ticks = [intensity_min, intensity_max]
+        cbar_ticklabels = [f"{intensity_min} dB", f"{intensity_max} dB"]
     else:  # "reflectivity"
         cmap = plt.get_cmap("viridis")
         vmin, vmax = 0.0, 50.0     # TODO: Tune
@@ -182,6 +203,9 @@ def render_raster_png(
     ax.set_xlabel("x (m)  left (-)  right (+)")
     ax.set_ylabel("y (m)  forward")
     ax.set_aspect("equal")
+
+    ax.invert_xaxis() # b/c y axis of Aeva is defined positive to the left
+
     if title:
         ax.set_title(title)
 
@@ -253,7 +277,7 @@ def rasterize_directory_to_pngs(
             min_points=min_points,
             clip=clip if channel == "velocity" else None,
             gate_col=0,       # gate by x (0th channel)
-            gate_min=None,    # 2.0 m
+            gate_min=0,    # 2.0 m
             gate_max=None,    # 20.0 m
             value_col=value_col,
             intensity_min=intensity_min,
@@ -272,6 +296,10 @@ def rasterize_directory_to_pngs(
             save_path=png_path,
             show=False,
             channel=channel,
+            intensity_min=intensity_min,
+            intensity_max=intensity_max,
+            reflectivity_min=reflectivity_min,
+            reflectivity_max=reflectivity_max
         )
         saved.append(png_path)
     return saved

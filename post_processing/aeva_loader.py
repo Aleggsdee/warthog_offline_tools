@@ -106,18 +106,19 @@ def load_aeva_sequence(aeva_dir: str | Path) -> List[np.ndarray]:
 
 if __name__ == "__main__":
     # Point this to your 'aeva' folder (the one in your screenshot)
-    AEVA_DIR = "/home/asrl/Documents/Research/vtr3/data/rosbag2_copy/aeva"
+    AEVA_DIR = "/home/asrl/Documents/Research/vtr3/data/Dec_16_2025/calib/aeva"
 
-    files = list_aeva_bins(AEVA_DIR)
+    files = list_aeva_bins(AEVA_DIR) # each .bin contains one full LiDAR frame
     print(f"Found {len(files)} frames.")
 
     # Load first frame
-    frame0 = load_aeva_frame(files[1])  # shape (N, 11)
+    frame0 = load_aeva_frame(files[0])  # shape (N, 11)
     print("Frame 0: ", frame0)
     print("vel finite ratio:", np.isfinite(frame0[:,3]).mean())
     print("Frame 0 shape:", frame0.shape)
     print("Columns: x y z vel I SQ R time lineID beamID faceID")
     print("Velocity min/max:", np.nanmin(frame0[:,3]), np.nanmax(frame0[:,3]))
+    print("Intensity min/max:", np.nanmin(frame0[:,4]), np.nanmax(frame0[:,4]))
     print("X min/max:", np.nanmin(frame0[:,0]), np.nanmax(frame0[:,0]))
     print("Y min/max:", np.nanmin(frame0[:,1]), np.nanmax(frame0[:,1]))
     print("Z min/max:", np.nanmin(frame0[:,2]), np.nanmax(frame0[:,2]))
