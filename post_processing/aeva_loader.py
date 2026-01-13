@@ -66,7 +66,7 @@ def load_aeva_frame(filepath: str | Path, frame_time_s: Optional[float] = None,
         raise ValueError(f"{filepath.name}: expected 10 float32 columns per point, got size {raw.size}")
     pts = raw.reshape((-1, 10)).astype(out_dtype)
 
-    # Column meanings in your extractor:
+    # Columns from extraction
     # 0:x 1:y 2:z 3:velocity 4:intensity 5:signal_quality 6:reflectivity
     # 7:time_offset_ns 8:point_flags_lsb 9:point_flags_msb
 
@@ -75,12 +75,12 @@ def load_aeva_frame(filepath: str | Path, frame_time_s: Optional[float] = None,
         frame_time_s = parse_epoch_seconds_from_name(filepath)
     pts[:, 7] = pts[:, 7] * 1e-9 + float(frame_time_s)
 
-    # Flags decoding: lsb/msb were stored as floats but hold integer values.
+    # Flags decoding: lsb/msb were stored as floats but hold integer values
     flags_lsb = pts[:, 8].astype(np.uint32)
     flags_msb = pts[:, 9].astype(np.uint32)
     flags = (flags_msb << 16) | flags_lsb
 
-    # Unpack IDs (adjust masks/shifts if your mapping differs)
+    # Unpack IDs
     lineID = ((flags >> 8) & 0xFF).astype(out_dtype)
     beamID = ((flags >> 16) & 0xF).astype(out_dtype)
     faceID = ((flags >> 22) & 0xF).astype(out_dtype)

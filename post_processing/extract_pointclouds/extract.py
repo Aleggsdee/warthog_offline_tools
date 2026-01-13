@@ -49,6 +49,8 @@ if __name__ == '__main__':
     for file in files:
         if file.split('.')[-1] == 'mcap':
             bagfiles.append(file)
+        # if file.split('.')[-1] == 'db3': 
+        #     bagfiles.append(file) 
     bagfiles.sort()
 
     ousterimufile = open(root + "imu/ouster_imu.csv", "w")
@@ -59,7 +61,8 @@ if __name__ == '__main__':
     topics = ['/ouster/points', '/ouster/imu', '/aeva/sensor/point_cloud_compensated', '/aeva/sensor/point_cloud', '/aeva/sensor/imu']
 
     for i in range(len(bagfiles)):
-        storage_options = rosbag2_py.StorageOptions(uri=root + bagfiles[i], storage_id='mcap')
+        storage_options = rosbag2_py.StorageOptions(uri=root + bagfiles[i], storage_id='mcap') # for mcap
+        # storage_options = rosbag2_py.StorageOptions(uri=root + bagfiles[i], storage_id='sqlite3') # for .db3
         converter_options = rosbag2_py.ConverterOptions(input_serialization_format='cdr', output_serialization_format='cdr')
         bag = rosbag2_py.SequentialReader()
         bag.open(storage_options, converter_options)

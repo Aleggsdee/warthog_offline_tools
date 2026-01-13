@@ -5,15 +5,15 @@ from matplotlib.colors import Normalize
 import matplotlib.pyplot as plt  # Import pyplot to get the colormap
 
 from doppler_raster import intensity_cmap
-from aeva_loader import list_aeva_bins, load_aeva_frame
+from ouster_loader import list_ouster_bins, load_ouster_frame
 
 intensity_min = -60
 intensity_max = -20
 p = 0.0  # keep top percentile of brightest points
 
 # ------------------ Color options ------------------
-# Choose: "intensity" | "depth" | "height"
-COLOR_MODE = "height"
+# Choose: "intensity" | "depth" | "height" | "signal_quality"
+COLOR_MODE = "depth"
 
 # For depth/height coloring ranges (meters). If None, use min/max of current cloud.
 DEPTH_MIN, DEPTH_MAX = None, None   # depth = x axis
@@ -35,6 +35,7 @@ def compute_colors(points_all, intens_all,
       - "intensity": use intens_all (your current behavior)
       - "depth":     use x axis
       - "height":    use z axis
+      - "signal_quality": use signal quality
     """
     if points_all.shape[0] == 0:
         return np.zeros((0, 3), dtype=np.float32)
@@ -59,7 +60,7 @@ def compute_colors(points_all, intens_all,
         norm = Normalize(vmin=vmin, vmax=vmax, clip=True)
 
     else:
-        raise ValueError(f"Unknown COLOR_MODE='{color_mode}'. Use 'intensity', 'depth', or 'height'.")
+        raise ValueError(f"Unknown COLOR_MODE='{color_mode}'. Use 'intensity', 'depth', 'height' or 'signal_quality'.")
 
     colors_rgb = cmap(norm(scalar))[:, :3].astype(np.float32)
     return colors_rgb
@@ -67,47 +68,45 @@ def compute_colors(points_all, intens_all,
 
 
 if __name__ == "__main__":
-    # Point this to your 'aeva' folder (the one in your screenshot)
-    AEVA_DIR = "/home/asrl/Documents/Research/vtr3/data/Dec_16_2025/calib/aeva"
-    # AEVA_DIR = "/home/asrl/Documents/Research/vtr3/data/rosbag2_2025_10_21-19_39_16/aeva"
+    OUSTER_DIR = "/home/asrl/Documents/Research/vtr3/data/ouster_test/ouster"
     SAVE_DIR = "/home/asrl/Documents/Research/warthog_offline_tools/post_processing/calib_pcd"
 
-    files = list_aeva_bins(AEVA_DIR) # each .bin contains one full LiDAR frame
+    files = list_ouster_bins(OUSTER_DIR) # each .bin contains one full LiDAR frame
     print(f"Found {len(files)} frames.")
 
     # Define bounds
-    x_min, x_max = 0.0, 10.0
-    y_min, y_max = -3.0, 4.0
-    z_min, z_max = -1.5, 2.0
+    # x_min, x_max = 0.0, 10.0
+    # y_min, y_max = -3.0, 4.0
+    # z_min, z_max = -1.5, 2.0
 
     all_points = []
     all_intensities = []
 
-    for file in files[:10]:
-        frame = load_aeva_frame(file)
+    for file in files[:100]:
+        frame = load_ouster_frame(file)
 
-        mask = (
-            (frame[:, 0] >= x_min) & (frame[:, 0] <= x_max) &
-            (frame[:, 1] >= y_min) & (frame[:, 1] <= y_max) &
-            (frame[:, 2] >= z_min) & (frame[:, 2] <= z_max) &
-            np.isfinite(frame[:, 4]) &
-            np.isfinite(frame[:, 0]) & np.isfinite(frame[:, 1]) & np.isfinite(frame[:, 2])
-        )
+        # mask = (
+        #     (frame[:, 0] >= x_min) & (frame[:, 0] <= x_max) &
+        #     (frame[:, 1] >= y_min) & (frame[:, 1] <= y_max) &
+        #     (frame[:, 2] >= z_min) & (frame[:, 2] <= z_max) &
+        #     np.isfinite(frame[:, 3]) &
+        #     np.isfinite(frame[:, 0]) & np.isfinite(frame[:, 1]) & np.isfinite(frame[:, 2])
+        # )
 
-        intensity_thr = np.percentile(frame[:, 4], p)
-        keep = mask & (frame[:, 4] >= intensity_thr)
+        # intensity_thr = np.percentile(frame[:, 3], p)
+        # keep = mask & (frame[:, 3] >= intensity_thr)
 
-        filtered = frame[keep]
+        # filtered = frame[keep]
+        filtered = frame
         if filtered.shape[0] == 0:
             continue
 
         all_points.append(filtered[:, 0:3].astype(np.float32))
-        all_intensities.append(filtered[:, 4].astype(np.float32))
+        all_intensities.append(filtered[:, 3].astype(np.float32))
 
-    # Stack into (M,3) and (M,)
+    # Stack lists into np arrays
     points_all = np.vstack(all_points) if all_points else np.zeros((0,3), dtype=np.float32)
     intens_all = np.hstack(all_intensities) if all_intensities else np.zeros((0,), dtype=np.float32)
-
     pcd = o3d.t.geometry.PointCloud(o3d.core.Tensor(points_all, dtype=o3d.core.float32))
 
     # ------------------ Color selection (intensity/depth/height) ------------------
@@ -130,20 +129,15 @@ if __name__ == "__main__":
 
     pcd.point["colors"] = o3d.core.Tensor(colors_rgb, dtype=o3d.core.float32)
     
-    # --- 2. Save to Disk ---
-    # You can use .pcd or .ply. 
-    # write_ascii=True makes the file readable in a text editor (good for debugging)
-    filename = "calib_all_frames.pcd"
-    # filename = "katya.pcd"
+    # save pcd
+    filename = "ouster.pcd"
     full_save_path = os.path.join(SAVE_DIR, filename)
     o3d.t.io.write_point_cloud(full_save_path, pcd, write_ascii=True)
     print(f"Successfully saved to: {os.path.abspath(SAVE_DIR)}")
 
 
-    # Load the file you just saved
+    # Load pcd
     pcd = o3d.t.io.read_point_cloud(full_save_path)
-    
-    # Create a coordinate frame (size 1.0 meter)
     axes = o3d.t.geometry.TriangleMesh.create_coordinate_frame(size=1.0, origin=[0, 0, 0])
 
     # Set camera pose
@@ -167,15 +161,19 @@ if __name__ == "__main__":
 
     vis = o3d.visualization.VisualizerWithEditing()
     vis.create_window(window_name="Pick points: Shift+LeftClick, then press Q")
-    vis.get_render_option().background_color = np.array([0.0, 0.0, 0.0])
+    
+    render_opt = vis.get_render_option()
+    render_opt.background_color = np.array([0.0, 0.0, 0.0])
+    render_opt.point_size = 1.0   # (default ≈ 5)
+
     vis.add_geometry(pcd_legacy)
     vis.add_geometry(axes_legacy)
 
-    # Optional camera setup (approximate)
+    # Camera settings
     ctr = vis.get_view_control()
     ctr.set_lookat([2, 0, 0])
     ctr.set_up([0, 0, 1])
-    ctr.set_front([-1, 0, 0])  # camera looking along +x
+    ctr.set_front([-1, 0, 0])
 
     print("Instructions:")
     print("  - Press 'P' to enable point picking")
@@ -188,8 +186,8 @@ if __name__ == "__main__":
     print("Picked indices:", picked_idx)
 
     # IMPORTANT: intensities must match the point order used to build the pcd
-    points_xyz = np.asarray(pcd_legacy.points)          # (M,3)
-    intensities = intens_all.astype(np.float64)        # (M,) from your filtered_points
+    points_xyz = np.asarray(pcd_legacy.points)          
+    intensities = intens_all.astype(np.float64)      
 
     for k, idx in enumerate(picked_idx):
         x, y, z = points_xyz[idx]
