@@ -9,18 +9,18 @@ from aeva_loader import list_aeva_bins, load_aeva_frame
 
 intensity_min = -60
 intensity_max = -20
-p = 0.0  # keep top percentile of brightest points
+p = 99.7  # keep top percentile of brightest points
 
 # ------------------ Color options ------------------
 # Choose: "intensity" | "depth" | "height" | "signal_quality"
-COLOR_MODE = "signal_quality"
+COLOR_MODE = "intensity"
 
 # For depth/height coloring ranges (meters). If None, use min/max of current cloud.
 DEPTH_MIN, DEPTH_MAX = None, None   # depth = x axis
 HEIGHT_MIN, HEIGHT_MAX = None, None # height = z axis
 
 # Colormap for geometric coloring (depth/height)
-GEOM_CMAP_NAME = "viridis"
+GEOM_CMAP_NAME = "plasma"
 
 
 def compute_colors(points_all, intens_all, signal_quality_all,
@@ -75,23 +75,23 @@ def compute_colors(points_all, intens_all, signal_quality_all,
 
 
 if __name__ == "__main__":
-    # AEVA_DIR = "/home/asrl/Documents/Research/vtr3/data/Dec_16_2025/calib/aeva"
-    AEVA_DIR = "/home/asrl/Documents/Research/vtr3/data/alex/rosbag2_2026_01_12-17_08_51/aeva"
-    SAVE_DIR = "/home/asrl/Documents/Research/warthog_offline_tools/post_processing/calib_pcd"
+    AEVA_DIR = "/home/asrl/Documents/Research/vtr3/data/Jan_19_2026/rosbag2_2026_01_19_calib2/aeva"
+    # AEVA_DIR = "/home/asrl/Documents/Research/vtr3/data/boreas-2025-01-08-10-59_300"
+    SAVE_DIR = "/home/asrl/Documents/Research/warthog_offline_tools/post_processing/01_19_2026"
 
     files = list_aeva_bins(AEVA_DIR) # each .bin contains one full LiDAR frame
     print(f"Found {len(files)} frames.")
 
     # Define bounds
-    x_min, x_max = 0.0, 10.0
-    y_min, y_max = -3.0, 4.0
-    z_min, z_max = -1.5, 2.0
+    x_min, x_max = 0.0, 4
+    y_min, y_max = -4.0, 4.0
+    z_min, z_max = -2, 2.0
 
     all_points = []
     all_intensities = []
     all_signal_qualities = []
 
-    for file in files[:1]:
+    for file in files[:]:
         frame = load_aeva_frame(file)
 
         mask = (
@@ -142,7 +142,7 @@ if __name__ == "__main__":
     pcd.point["colors"] = o3d.core.Tensor(colors_rgb, dtype=o3d.core.float32)
     
     # save pcd
-    filename = "test.pcd"
+    filename = "calib_all_frames.pcd"
     full_save_path = os.path.join(SAVE_DIR, filename)
     o3d.t.io.write_point_cloud(full_save_path, pcd, write_ascii=True)
     print(f"Successfully saved to: {os.path.abspath(SAVE_DIR)}")
@@ -150,12 +150,12 @@ if __name__ == "__main__":
 
     # Load pcd
     pcd = o3d.t.io.read_point_cloud(full_save_path)
-    axes = o3d.t.geometry.TriangleMesh.create_coordinate_frame(size=1.0, origin=[0, 0, 0])
+    axes = o3d.t.geometry.TriangleMesh.create_coordinate_frame(size=5.0, origin=[0, 0, 0])
 
     # Set camera pose
-    center = [2, 0, 0]
-    up_direction = [0, 0, 1]
-    eye = [1, 0, 0]
+    # center = [2, 0, 0]
+    # up_direction = [0, 0, 1]
+    # eye = [1, 0, 0]
 
     # # Draw both the cloud and the axes
     # o3d.visualization.draw(
@@ -176,16 +176,19 @@ if __name__ == "__main__":
     
     render_opt = vis.get_render_option()
     render_opt.background_color = np.array([0.0, 0.0, 0.0])
-    render_opt.point_size = 1.0   # (default ≈ 5)
+    render_opt.point_size = 3.0   # (default ≈ 5)
+    render_opt.show_coordinate_frame = True # just displays axes in bottom right, doesn't actually show origin
 
     vis.add_geometry(pcd_legacy)
     vis.add_geometry(axes_legacy)
 
     # Camera settings
     ctr = vis.get_view_control()
-    ctr.set_lookat([2, 0, 0])
-    ctr.set_up([0, 0, 1])
-    ctr.set_front([-1, 0, 0])
+    lookat = [(x_min + x_max)/2, (y_min + y_max)/2, (z_min + z_max)/2]   # center of your ROI in x,y,z
+    ctr.set_lookat(lookat)
+    ctr.set_up([0, 0, 1])                 # typical up
+    ctr.set_front([-1, 0, 0])              # camera looks along +x direction (a direction vector)
+    ctr.set_zoom(0.01)                     # smaller = farther out, bigger = closer (tune)
 
     print("Instructions:")
     print("  - Press 'P' to enable point picking")

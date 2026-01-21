@@ -7,13 +7,13 @@ import matplotlib.pyplot as plt  # Import pyplot to get the colormap
 from doppler_raster import intensity_cmap
 from ouster_loader import list_ouster_bins, load_ouster_frame
 
-intensity_min = -60
-intensity_max = -20
-p = 0.0  # keep top percentile of brightest points
+intensity_min = 1.00
+intensity_max = 10064.00
+p = 99.7  # keep top percentile of brightest points
 
 # ------------------ Color options ------------------
 # Choose: "intensity" | "depth" | "height" | "signal_quality"
-COLOR_MODE = "depth"
+COLOR_MODE = "intensity"
 
 # For depth/height coloring ranges (meters). If None, use min/max of current cloud.
 DEPTH_MIN, DEPTH_MAX = None, None   # depth = x axis
@@ -68,36 +68,37 @@ def compute_colors(points_all, intens_all,
 
 
 if __name__ == "__main__":
-    OUSTER_DIR = "/home/asrl/Documents/Research/vtr3/data/ouster_test/ouster"
-    SAVE_DIR = "/home/asrl/Documents/Research/warthog_offline_tools/post_processing/calib_pcd"
+    OUSTER_DIR = "/home/asrl/Documents/Research/vtr3/data/Jan_19_2026/rosbag2_2026_01_19_calib2/ouster"
+    SAVE_DIR = "/home/asrl/Documents/Research/warthog_offline_tools/post_processing/01_19_2026"
 
     files = list_ouster_bins(OUSTER_DIR) # each .bin contains one full LiDAR frame
     print(f"Found {len(files)} frames.")
 
     # Define bounds
-    # x_min, x_max = 0.0, 10.0
-    # y_min, y_max = -3.0, 4.0
-    # z_min, z_max = -1.5, 2.0
+    x_min, x_max = -5.0, -1.5
+    y_min, y_max = -2.0, 2.0
+    z_min, z_max = -1.0, 0.75
 
     all_points = []
     all_intensities = []
 
-    for file in files[:100]:
+    for file in files[:]:
         frame = load_ouster_frame(file)
 
-        # mask = (
-        #     (frame[:, 0] >= x_min) & (frame[:, 0] <= x_max) &
-        #     (frame[:, 1] >= y_min) & (frame[:, 1] <= y_max) &
-        #     (frame[:, 2] >= z_min) & (frame[:, 2] <= z_max) &
-        #     np.isfinite(frame[:, 3]) &
-        #     np.isfinite(frame[:, 0]) & np.isfinite(frame[:, 1]) & np.isfinite(frame[:, 2])
-        # )
+        mask = (
+            (frame[:, 0] >= x_min) & (frame[:, 0] <= x_max) &
+            (frame[:, 1] >= y_min) & (frame[:, 1] <= y_max) &
+            (frame[:, 2] >= z_min) & (frame[:, 2] <= z_max) &
+            np.isfinite(frame[:, 3]) &
+            np.isfinite(frame[:, 0]) & np.isfinite(frame[:, 1]) & np.isfinite(frame[:, 2])
+        )
 
-        # intensity_thr = np.percentile(frame[:, 3], p)
-        # keep = mask & (frame[:, 3] >= intensity_thr)
+        intensity_thr = np.percentile(frame[:, 3], p)
+        keep = mask & (frame[:, 3] >= intensity_thr)
+        # keep = frame[:, 3] >= intensity_thr
 
-        # filtered = frame[keep]
-        filtered = frame
+        filtered = frame[keep]
+        # filtered = frame
         if filtered.shape[0] == 0:
             continue
 
@@ -130,7 +131,7 @@ if __name__ == "__main__":
     pcd.point["colors"] = o3d.core.Tensor(colors_rgb, dtype=o3d.core.float32)
     
     # save pcd
-    filename = "ouster.pcd"
+    filename = "ouster_brightest.pcd"
     full_save_path = os.path.join(SAVE_DIR, filename)
     o3d.t.io.write_point_cloud(full_save_path, pcd, write_ascii=True)
     print(f"Successfully saved to: {os.path.abspath(SAVE_DIR)}")
@@ -139,11 +140,6 @@ if __name__ == "__main__":
     # Load pcd
     pcd = o3d.t.io.read_point_cloud(full_save_path)
     axes = o3d.t.geometry.TriangleMesh.create_coordinate_frame(size=1.0, origin=[0, 0, 0])
-
-    # Set camera pose
-    center = [2, 0, 0]
-    up_direction = [0, 0, 1]
-    eye = [1, 0, 0]
 
     # # Draw both the cloud and the axes
     # o3d.visualization.draw(
@@ -164,16 +160,21 @@ if __name__ == "__main__":
     
     render_opt = vis.get_render_option()
     render_opt.background_color = np.array([0.0, 0.0, 0.0])
-    render_opt.point_size = 1.0   # (default ≈ 5)
+    render_opt.point_size = 5.0   # (default ≈ 5)
+    render_opt.show_coordinate_frame = True
 
     vis.add_geometry(pcd_legacy)
     vis.add_geometry(axes_legacy)
 
     # Camera settings
     ctr = vis.get_view_control()
-    ctr.set_lookat([2, 0, 0])
-    ctr.set_up([0, 0, 1])
-    ctr.set_front([-1, 0, 0])
+    # lookat = [(x_min + x_max)/2, (y_min + y_max)/2, (z_min + z_max)/2]   # center of your ROI in x,y,z
+    lookat = [-1.5,0,0]   # center of your ROI in x,y,z
+    ctr.set_lookat(lookat)
+    ctr.set_up([0, 0, -1])                 # typical up
+    ctr.set_front([1, 0, 0])              # camera looks along +x direction (a direction vector)
+    ctr.set_zoom(0.1)                     # smaller = farther out, bigger = closer (tune)
+
 
     print("Instructions:")
     print("  - Press 'P' to enable point picking")

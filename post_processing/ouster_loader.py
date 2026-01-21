@@ -104,14 +104,14 @@ def load_ouster_sequence(ouster_dir: str | Path) -> List[np.ndarray]:
 
 if __name__ == "__main__":
     # Point this to your 'ouster' folder
-    OUSTER_DIR = "/home/asrl/Documents/Research/vtr3/data/ouster_test/ouster"
+    OUSTER_DIR = "/home/asrl/Documents/Research/vtr3/data/Jan_19_2026/rosbag2_2026_01_19_calib2/ouster"
 
     try:
         files = list_ouster_bins(OUSTER_DIR)
         print(f"Found {len(files)} frames.")
 
         # Load first frame
-        frame0 = load_ouster_frame(files[0])  # shape (N, 9)
+        frame0 = load_ouster_frame(files[10])  # shape (N, 9)
         
         print(f"Frame 0 shape: {frame0.shape}")
         print("-" * 30)
